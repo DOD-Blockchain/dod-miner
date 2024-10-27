@@ -1,0 +1,2 @@
+cuda_cores = 3584
+batch_size = 1200000000

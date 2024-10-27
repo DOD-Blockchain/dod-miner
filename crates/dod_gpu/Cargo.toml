@@ -1,0 +1,23 @@
+[package]
+edition = "2018"
+name = "dod_gpu"
+version = "0.0.1"
+links = "cudart"
+
+[lib]
+path = "src/mod.rs"
+crate-type = ["lib"]
+
+[dependencies]
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+hex = { version = "0.4.3", features = ["serde"] }
+tokio = { workspace = true }
+dod_utils = { path = "../dod_utils"}
+bitcoin = { workspace = true }
+
+[build-dependencies]
+bindgen = "0.70.1"
+cc = "1.0.82"
+
+
