@@ -200,7 +200,7 @@ pub fn sub_task_v3(
     ret.clone()
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(feature="gpu")]
 pub async fn multi_run_v3_gpu(
     bitwork: Bitwork,
     remote_hash: Vec<u8>,
@@ -208,8 +208,10 @@ pub async fn multi_run_v3_gpu(
     _threads: Option<u32>,
     dead_line: u128,
 ) -> Result<MiningResultGpu, String> {
+    let gpus = dod_gpu::gpu::get_gpus().await;
+
     let running = Arc::new(Mutex::new(true));
-    info!("Running GPU mining");
+    info!("Running {} GPU cores", gpus);
 
     let (_, _, tx, rx) = get_multi_progress::<ThreadResultGpu>();
     let cancel_flag = Arc::new(Mutex::new(false));
@@ -221,37 +223,44 @@ pub async fn multi_run_v3_gpu(
 
     // let mut handles = vec![];
 
-    let tx = tx.clone();
-    let bitwork = bitwork.clone();
-    let remote_hash = remote_hash.clone();
-    let raw_pubkey = raw_pubkey.clone();
-    let cancel_flag = cancel_flag.clone();
+    for i in 0..gpus {
+        let tx = tx.clone();
+        let bitwork = bitwork.clone();
+        let remote_hash = remote_hash.clone();
+        let raw_pubkey = raw_pubkey.clone();
+        let cancel_flag = cancel_flag.clone();
 
-        loop {
-            if *cancel_flag.lock().await {
-                break;
-            }
+        thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                loop {
+                    if *cancel_flag.lock().await {
+                        break;
+                    }
 
-            let res = sub_task_v3_gpu(
-                remote_hash.clone(),
-                raw_pubkey.clone(),
-                bitwork.clone(),
-                dead_line,
-                tx.clone(),
-                0
-            )
-            .await;
+                    let res = sub_task_v3_gpu(
+                        remote_hash.clone(),
+                        raw_pubkey.clone(),
+                        bitwork.clone(),
+                        dead_line,
+                        tx.clone(),
+                        i,
+                    )
+                    .await;
 
-            if tx.send(res.clone()).is_err() {
-                break;
-            }
+                    if tx.send(res.clone()).is_err() {
+                        break;
+                    }
 
-            if res.expired || res.res.is_some() {
-                break;
-            }
-        };
+                    if res.expired || res.res.is_some() {
+                        break;
+                    }
+                }
+            });
+        });
 
-    // handles.push(handle);
+        // handles.push(handle);
+    }
 
     let result = {
         let mut ex: Option<MiningResultGpu> = None;
@@ -260,9 +269,7 @@ pub async fn multi_run_v3_gpu(
         let timeout = Duration::from_millis(dead_line as u64);
         let start = SystemTime::now();
 
-        while let Ok(v) =
-            rx.recv_timeout(timeout.saturating_sub(start.elapsed().unwrap_or(timeout)))
-        {
+        while let Ok(v) = rx.recv_timeout(timeout.saturating_sub(start.elapsed().unwrap_or(timeout))) {
             if v.expired || v.res.is_some() {
                 ex = v.res.clone();
                 expired = v.expired;

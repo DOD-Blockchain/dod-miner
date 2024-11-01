@@ -238,6 +238,23 @@ impl FetcherService {
         Ok(rrr)
     }
 
+    pub async fn get_current_block_cycles(&self, block: u64) -> Result<u128, String> {
+        let agent = with_agent(
+            self.delegation_identity.clone().unwrap(),
+            self.get_ic_network(),
+        )
+        .await;
+
+        let get_last_block = agent
+            .query(&self.get_dod_canister(), "get_block_total_cycles")
+            .with_arg(Encode!(&block).unwrap())
+            .await
+            .map_err(|e| format!("Error get_last_block: {:?}", e))?;
+        let rrr = Decode!(get_last_block.as_slice(), u128)
+            .map_err(|e| format!("Error decoding: {:?}", e))?;
+        Ok(rrr)
+    }
+
     pub async fn register_miner(
         &mut self,
         btc_address: String,
@@ -269,14 +286,24 @@ impl FetcherService {
 
     pub async fn submit_result(
         &self,
+        latest_block: u64,
         remote_hash: Vec<u8>,
         raw_pubkey: Vec<u8>,
         address: String,
         wif: String,
         mining_result: MiningResultType,
         cycles_price: u128,
+        cycles_price_percent: Option<String>,
     ) -> Result<MinerSubmitResponse, String> {
         let private_key = bitcoin::key::PrivateKey::from_wif(wif.as_str()).unwrap();
+        let block_cycles = self.get_current_block_cycles(latest_block).await?;
+        let cycles_price = match cycles_price_percent {
+            Some(cycles_price_percent) => ((block_cycles as f64)
+                * (cycles_price_percent.parse::<f64>().unwrap()))
+            .round() as u128,
+            None => cycles_price,
+        };
+
         let (time, nonce, num_bytes) = match mining_result {
             MiningResultType::Cpu(r) => (r.time, r.nonce, r.num_bytes.to_le_bytes().to_vec()),
             MiningResultType::Gpu(v) => (v.time, v.nonce, v.num_bytes),

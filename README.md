@@ -9,10 +9,6 @@ https://docs.nvidia.com/cuda/wsl-user-guide/index.html
 ```bash
 ./install.sh
 ```
-## CPU
-```bash
-cargo build --release
-```
 
 ### GPU
 ```bash
@@ -28,26 +24,23 @@ batch_size = $batch_size_per_run
 
 ## Run
 
-### CPU
-#### Bash run
+#### Bash run with cycles price percent(recommend)
 ```bash
-./target/release/dod_miner miner --threads=$cpu_threads --cycles_price=$cycles_price --wif=$wif_priv_key
-```
+./target/release/dod_miner miner --cycles_price_percent=$cycles_price_percent --wif=$wif_priv_key
 
+```
 eg.
 ```bash
-./target/release/dod_miner miner --threads=12 --cycles_price=0.5 --wif=xxxxxxxxxxxxxxxxxxxxx
+./target/release/dod_miner miner --cycles_price_percent=0.99 --wif=xxxxxxxxxxxxxxxxxxxxx
 ```
 
-### GPU
-#### Bash run
+#### Bash run with fixed cycles price
 ```bash
 ./target/release/dod_miner miner --cycles_price=$cycles_price --wif=$wif_priv_key
 ```
-
 eg.
 ```bash
-./target/release/dod_miner miner --cycles_price=0.5 --wif=xxxxxxxxxxxxxxxxxxxxx
+./target/release/dod_miner miner --cycles_price=1.5 --wif=xxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## Linux

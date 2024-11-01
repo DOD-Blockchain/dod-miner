@@ -51,6 +51,14 @@ pub async fn run_gpu_single(params: GpuSingleJob) -> Result<String, String> {
     res
 }
 
+pub async fn get_gpus() -> u32 {
+    let res = unsafe {
+        let result = getGpus();
+        result as u32
+    };
+    res
+}
+
 pub async fn which_busy() -> u32 {
     let res = unsafe {
         let result = whichBusy();

@@ -27,7 +27,9 @@ struct MinerArgs {
     #[arg(long = "wif")]
     wif: String,
     #[arg(long = "cycles_price")]
-    cycles_price: String
+    cycles_price: Option<String>,
+    #[arg(long = "cycles_price_percent")]
+    cycles_price_percent: Option<String>,
 }
 
 #[tokio::main]
@@ -41,9 +43,14 @@ async fn main() {
     let _ic_network = String::from("ic");
     let _account_wif = minter_args.wif;
 
-    let _cycles_price = (minter_args.cycles_price.parse::<f64>().unwrap()
-        * u128::pow(10, 12) as f64)
-        .round() as u128;
+    let _cycles_price = match minter_args.cycles_price {
+        Some(cycle_price) => {
+            (cycle_price.parse::<f64>().unwrap() * u128::pow(10, 12) as f64).round() as u128
+        }
+        None => 0,
+    };
+
+    let _cycles_price_percent = minter_args.cycles_price_percent;
 
     let _threads = minter_args
         .threads
@@ -94,6 +101,7 @@ async fn main() {
             _account_wif.clone(),
             r,
             _cycles_price.clone(),
+            _cycles_price_percent.clone(),
         );
     }
 }
@@ -105,7 +113,7 @@ async fn _schedule_fetch(
     tx: Sender<MiningResultExt>,
 ) -> Result<String, JobSchedulerError> {
     let sched = JobScheduler::new().await?;
-    let check_job = Job::new_async("1/5 * * * * *", move |_uuid, _l| {
+    let check_job = Job::new_async("1/3 * * * * *", move |_uuid, _l| {
         let _tx = tx.clone();
         let _miner = miner.clone();
         let _threads = threads.clone();
@@ -258,16 +266,19 @@ fn submit(
     wif: String,
     mining_result: MiningResultExt,
     cycles_price: u128,
+    cycles_price_percent: Option<String>,
 ) {
     let _remote_hash = mining_result.remote_hash.clone();
     let _miner_tuple = miner_tuple.clone();
     let _wif = wif.clone();
     let _mining_result = mining_result.result.clone();
     let _cycles_price = cycles_price;
+    let _cycles_price_percent = cycles_price_percent;
     let _dead_line = mining_result.dead_line.clone();
     let _miner = miner.clone();
 
     let _ = tokio::spawn(async move {
+        let latest_block = LATEST_BLOCK.lock().await;
         let raw_pub = hex::decode(_miner_tuple.1).unwrap();
         // let time_now = SystemTime::now()
         //     .duration_since(SystemTime::UNIX_EPOCH)
@@ -285,12 +296,14 @@ fn submit(
 
         let _ = _miner
             .submit_result(
+                latest_block.unwrap(),
                 _remote_hash,
                 raw_pub,
                 _miner_tuple.0,
                 _wif,
                 _mining_result,
                 _cycles_price,
+                _cycles_price_percent,
             )
             .await;
     });
